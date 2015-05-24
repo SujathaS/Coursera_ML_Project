@@ -1,0 +1,69 @@
+---
+title: "WeightLiftingExercise_Prediction_WriteUp"
+output: html_document
+---
+
+##Synopsis
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. This project will use the data from accelerometers on the belt,forearm, arm, and dumbell of 6 participants while particpants perform barbell lifts correctly and incorrectly in 5 different ways.Predicting activity quality from measured data is the goal of this project.
+
+##Data preparation
+Loading the training data and preparing it for the model generation phase. Clean up phase includes removing missing values or imputing, removing other columns and changing data types of variables etc.
+
+
+```{r results='hide'}
+#Load the training set and treat NA and empty strings as NA.
+
+training = read.csv("pml-training.csv",na.strings=c("NA",""),stringsAsFactors=FALSE,header=TRUE)
+
+#Identify all the features with high percentage of missing values.
+indexKeep = colMeans(is.na(training)) < .96
+table(indexKeep)
+columnsToKeep <- names(training[,indexKeep])
+
+#Removing all the features with high percentage of missing values 
+training2 = training[, columnsToKeep]
+
+#removing the features - X,name and timestamp data   
+training2 = training2[,-c(1:5)]
+
+#Making the new_window and classe as the factor variables
+training2$new_window = as.factor(training2$new_window)
+training2$classe = as.factor(training2$classe)
+```
+
+
+##Training Model
+Split the given training set into a subset of training and cross-validation sets in the ratio of 70:30.
+Model is then trained on the training set and accuracy and Out of sample error rate is measured for the cross validation data set.Need to test with the cross validation data to avoid high variance or Over-fitting
+
+```{r results='hide'}
+library(caret)
+set.seed(123)
+#Creating a subset within the training using 70%-30% split
+inTrain = createDataPartition(training2$classe,p=.70,list=FALSE)
+s_train<- training2[inTrain,]
+s_cv <- training2[-inTrain,]
+
+#To avoid re-running the training of the model each time the mark down is created, model is created once and saved.
+load("modelRF.RData",.GlobalEnv)
+
+if(!exists("model"))
+{
+  model = train(classe~.,data=s_train,method="rf",proxy=TRUE)
+  save(model,"modelRF.RData")
+}
+```
+
+##Cross Validation
+Based on the trained model, we predict the outcome variable using the cross validation set. The prediction outcome is compared with the actual outcome in the cross validation set,to obtain the accuracy and Out of Sample error rate.
+```{r echo=FALSE}
+model$results
+pred= predict(model,newdata=s_cv)
+cm= confusionMatrix(pred,s_cv$classe)
+cm
+cm$overall[1]
+paste("out of sample error ",1-(cm$overall[1]))
+```
+
+##Conclusion
+RandomForest model using all the features to predict the outcome varaible "classe", gives a 99.9% accuracy and .1% out of sample error. 
